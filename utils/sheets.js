@@ -19,6 +19,9 @@ const SHEETS = {
   SITE_VISIT_ECS: "SITE VIST ECS",
 };
 
+// Sheets where data starts from Row 7 (Row 1-6 = headers/info)
+const ROW7_SHEETS = [SHEETS.FMS, SHEETS.DONE];
+
 // Dedup check sheets - if lead's EnQ No is found in any of these, skip it
 const DEDUP_SHEETS = [
   SHEETS.PIPELINE,
@@ -56,11 +59,13 @@ async function getSheetData(sheetName, range) {
 }
 
 // Append a row to a sheet
+// For FMS/DONE sheets, appends from A7 so data always goes after Row 6 headers
 async function appendRow(sheetName, values) {
   const sheets = await getSheets();
+  const startCell = ROW7_SHEETS.includes(sheetName) ? "A7" : "A1";
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `'${sheetName}'!A1`,
+    range: `'${sheetName}'!${startCell}`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     resource: { values: [values] },
@@ -115,9 +120,9 @@ async function deleteRow(sheetName, rowIndex) {
 // Get all EnQ Nos from a sheet (column B)
 async function getEnqNosFromSheet(sheetName) {
   try {
-     const data = await getSheetData(sheetName, "B:B");
+    const data = await getSheetData(sheetName, "B:B");
     // FMS and DONE have data starting from row 7, others from row 2
-    const skipRows = (sheetName === "FMS" || sheetName === "DONE") ? 6 : 1;
+    const skipRows = ROW7_SHEETS.includes(sheetName) ? 6 : 1;
     return data.slice(skipRows).map((row) => (row[0] || "").trim());
   } catch (err) {
     console.error(`Error reading ${sheetName}:`, err.message);
@@ -128,7 +133,7 @@ async function getEnqNosFromSheet(sheetName) {
 // Find row index by EnQ No in a sheet (returns 1-indexed row number, or -1)
 async function findRowByEnqNo(sheetName, enqNo) {
   const data = await getSheetData(sheetName);
-  const startRow = (sheetName === "FMS" || sheetName === "DONE") ? 6 : 1;
+  const startRow = ROW7_SHEETS.includes(sheetName) ? 6 : 1;
   for (let i = startRow; i < data.length; i++) {
     if ((data[i][1] || "").trim() === enqNo.trim()) {
       return i + 1; // 1-indexed (row 1 = header, row 2 = first data)

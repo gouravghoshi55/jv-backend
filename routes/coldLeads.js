@@ -71,9 +71,11 @@ router.post("/update", async (req, res) => {
         return res.status(400).json({ error: "Invalid status" });
     }
 
-    // For FMS, only copy A-I (FMS has its own column structure)
+    // Current timestamp for destination sheet
+    const currentTimestamp = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+
     const moveRow = [
-      row[0] || "",
+      currentTimestamp,  // A - Timestamp (current, not old)
       row[1] || "",
       row[2] || "",
       row[3] || "",
