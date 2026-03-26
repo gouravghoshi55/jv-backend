@@ -79,9 +79,12 @@ router.post("/update", async (req, res) => {
         return res.status(400).json({ error: "Invalid status" });
     }
 
+    // Current timestamp for destination sheet
+    const currentTimestamp = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+
     // Build the row for destination sheet (A-I columns + Status + Remarks)
     const moveRow = [
-      row[0] || "", // A - Timestamp
+      currentTimestamp,  // A - Timestamp (current, not old)
       row[1] || "", // B - EnQ No
       row[2] || "", // C - Lead Generated From
       row[3] || "", // D - Client Name
