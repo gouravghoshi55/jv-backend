@@ -53,7 +53,7 @@ router.get("/list", async (req, res) => {
       if (!row || !row[COL.ENQ_NO]) continue;
 
       leads.push({
-        rowIndex: i + 1, // 1-indexed sheet row
+        rowIndex: i + 1,
         timestamp: row[COL.TIMESTAMP] || "",
         enqNo: row[COL.ENQ_NO] || "",
         leadGeneratedFrom: row[COL.LEAD_FROM] || "",
@@ -134,22 +134,19 @@ router.get("/step2", async (req, res) => {
 // POST /api/fms/step2/update - Update Step 2 with document uploads
 router.post("/step2/update", async (req, res) => {
   try {
-    const { rowIndex, enqNo, location } = req.body;
+    const { rowIndex, enqNo, location, clientName, mapLocation } = req.body;
 
     if (!rowIndex || !enqNo) {
       return res.status(400).json({ error: "rowIndex and enqNo are required" });
     }
 
-    // Create folder name: EnqNo_Location
-    const folderName = `${enqNo}_${(location || "").replace(/[^a-zA-Z0-9]/g, "_")}`;
-    
+    // Create folder name: ClientName(Location)
+    const folderName = `${clientName || "Unknown"}(${location || ""})`;
+
     // Create folder in Google Drive
-    const parentFolderId = "180yh3YoG-wbcgDQCkwvmGKqKfFinRsUK";
+    const parentFolderId = "0AKlw__VHWUaAUk9PVA";
     const folder = await createDriveFolder(folderName, parentFolderId);
     const folderLink = `https://drive.google.com/drive/folders/${folder.id}`;
-
-    // File uploads will be handled separately via /api/fms/upload endpoint
-    // Here we just update the sheet with folder link and actual date
 
     const currentDateTime = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 
@@ -158,8 +155,13 @@ router.post("/step2/update", async (req, res) => {
     await updateCell(SHEET_NAME, `${colLetter(COL.STATUS)}${rowIndex}`, ["Done"]);
     await updateCell(SHEET_NAME, `${colLetter(COL.PDF_FOLDER)}${rowIndex}`, [folderLink]);
 
-    res.json({ 
-      success: true, 
+    // Update Map Location (N) if provided
+    if (mapLocation && mapLocation.trim()) {
+      await updateCell(SHEET_NAME, `${colLetter(COL.MAP_LOCATION)}${rowIndex}`, [mapLocation.trim()]);
+    }
+
+    res.json({
+      success: true,
       message: "Step 2 completed",
       folderId: folder.id,
       folderLink: folderLink
@@ -186,8 +188,8 @@ router.post("/upload", async (req, res) => {
     // Update the specific column with file link
     await updateCell(SHEET_NAME, `${colLetter(columnIndex)}${rowIndex}`, [fileLink]);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       fileId: file.id,
       fileLink: fileLink
     });
