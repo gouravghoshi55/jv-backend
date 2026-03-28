@@ -1,6 +1,7 @@
 const { google } = require("googleapis");
-const path = require("path");
 const stream = require("stream");
+const path = require("path");
+require("dotenv").config();
 
 let driveApi = null;
 
@@ -9,7 +10,10 @@ async function getDrive() {
 
   const auth = new google.auth.GoogleAuth({
     keyFile: path.resolve(__dirname, "../credentials.json"),
-    scopes: ["https://www.googleapis.com/auth/drive"],
+    scopes: [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/drive.file",
+    ],
   });
 
   const client = await auth.getClient();
@@ -17,69 +21,65 @@ async function getDrive() {
   return driveApi;
 }
 
-// Create a folder in Google Drive
+// Create folder in Google Drive (Shared Drive supported)
 async function createDriveFolder(folderName, parentFolderId) {
   const drive = await getDrive();
 
-  // Check if folder already exists
-  const existing = await drive.files.list({
-    q: `name='${folderName}' and '${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: "files(id, name)",
+  const fileMetadata = {
+    name: folderName,
+    mimeType: "application/vnd.google-apps.folder",
+    parents: [parentFolderId],
+  };
+
+  const response = await drive.files.create({
+    requestBody: fileMetadata,
+    fields: "id, name, webViewLink",
+    supportsAllDrives: true,
   });
 
-  if (existing.data.files && existing.data.files.length > 0) {
-    return existing.data.files[0]; // Return existing folder
-  }
-
-  // Create new folder
-  const folder = await drive.files.create({
-    resource: {
-      name: folderName,
-      mimeType: "application/vnd.google-apps.folder",
-      parents: [parentFolderId],
-    },
-    fields: "id, name",
-  });
-
-  return folder.data;
+  return response.data;
 }
 
-// Upload file to Google Drive folder
+// Upload file to Google Drive (Shared Drive supported)
 async function uploadFileToDrive(fileName, fileBase64, mimeType, folderId) {
   const drive = await getDrive();
 
-  // Convert base64 to buffer
-  const buffer = Buffer.from(fileBase64, "base64");
-
-  // Create readable stream from buffer
   const bufferStream = new stream.PassThrough();
-  bufferStream.end(buffer);
+  bufferStream.end(Buffer.from(fileBase64, "base64"));
 
-  const file = await drive.files.create({
-    resource: {
+  const response = await drive.files.create({
+    requestBody: {
       name: fileName,
+      mimeType: mimeType,
       parents: [folderId],
     },
     media: {
-      mimeType: mimeType || "application/pdf",
+      mimeType: mimeType,
       body: bufferStream,
     },
     fields: "id, name, webViewLink",
+    supportsAllDrives: true,
   });
 
-  // Make file accessible via link
-  await drive.permissions.create({
-    fileId: file.data.id,
-    resource: {
-      role: "reader",
-      type: "anyone",
-    },
+  return response.data;
+}
+
+// List files in a folder (optional utility)
+async function listFilesInFolder(folderId) {
+  const drive = await getDrive();
+
+  const response = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false`,
+    fields: "files(id, name, mimeType, webViewLink)",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
-  return file.data;
+  return response.data.files || [];
 }
 
 module.exports = {
   createDriveFolder,
   uploadFileToDrive,
+  listFilesInFolder,
 };
