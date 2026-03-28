@@ -4,72 +4,196 @@ const {
   SHEETS,
   getSheetData,
   updateCell,
-  findRowByEnqNo,
 } = require("../utils/sheets");
+const { uploadFileToDrive, createDriveFolder } = require("../utils/drive");
 
-// GET /api/fms/list - Fetch all FMS leads
+const SHEET_NAME = SHEETS.FMS;
+
+// Column mapping (0-indexed) - FMS sheet
+const COL = {
+  TIMESTAMP: 0,      // A
+  ENQ_NO: 1,         // B
+  LEAD_FROM: 2,      // C
+  CLIENT_NAME: 3,    // D
+  PARTNER_TYPE: 4,   // E
+  PURPOSE: 5,        // F
+  LOCATION: 6,       // G
+  CONTACT_INFO: 7,   // H
+  CONCERN_PERSON: 8, // I
+  PLANNED: 9,        // J
+  ACTUAL: 10,        // K
+  STATUS: 11,        // L
+  // M = Time Delay (formula, skip)
+  MAP_LOCATION: 13,  // N
+  AKS: 14,           // O
+  KHASRA: 15,        // P
+  OLD_DOCUMENT: 16,  // Q
+  LAND_SURVEY: 17,   // R
+  // ... other columns ...
+  PDF_FOLDER: 26,    // AA (index 26)
+};
+
+// Helper: column index to letter
+function colLetter(index) {
+  if (index < 26) return String.fromCharCode(65 + index);
+  return String.fromCharCode(64 + Math.floor(index / 26)) + String.fromCharCode(65 + (index % 26));
+}
+
+// GET /api/fms/list - All FMS leads
 router.get("/list", async (req, res) => {
   try {
-    const data = await getSheetData(SHEETS.FMS);
-    if (data.length <= 1) {
-      return res.json({ leads: [], headers: [] });
+    const data = await getSheetData(SHEET_NAME);
+    if (data.length <= 6) {
+      return res.json({ leads: [] });
     }
 
-    const headers = data[0];
-    const leads = data.slice(6).map((row, index) => {
-      const lead = {
-        rowIndex: index + 7,
-        timestamp: row[0] || "",
-        enqNo: row[1] || "",
-        leadGeneratedFrom: row[2] || "",
-        clientName: row[3] || "",
-        partnerType: row[4] || "",
-        purpose: row[5] || "",
-        location: row[6] || "",
-        contactInfo: row[7] || "",
-        concernPerson: row[8] || "",
-      };
+    const leads = [];
+    for (let i = 6; i < data.length; i++) {
+      const row = data[i];
+      if (!row || !row[COL.ENQ_NO]) continue;
 
-      // Include all additional columns dynamically
-      for (let i = 9; i < row.length; i++) {
-        lead[`col_${i}`] = row[i] || "";
-      }
+      leads.push({
+        rowIndex: i + 1, // 1-indexed sheet row
+        timestamp: row[COL.TIMESTAMP] || "",
+        enqNo: row[COL.ENQ_NO] || "",
+        leadGeneratedFrom: row[COL.LEAD_FROM] || "",
+        clientName: row[COL.CLIENT_NAME] || "",
+        partnerType: row[COL.PARTNER_TYPE] || "",
+        purpose: row[COL.PURPOSE] || "",
+        location: row[COL.LOCATION] || "",
+        contactInfo: row[COL.CONTACT_INFO] || "",
+        concernPerson: row[COL.CONCERN_PERSON] || "",
+        planned: row[COL.PLANNED] || "",
+        actual: row[COL.ACTUAL] || "",
+        status: row[COL.STATUS] || "",
+        mapLocation: row[COL.MAP_LOCATION] || "",
+        aks: row[COL.AKS] || "",
+        khasra: row[COL.KHASRA] || "",
+        oldDocument: row[COL.OLD_DOCUMENT] || "",
+        landSurvey: row[COL.LAND_SURVEY] || "",
+        pdfFolder: row[COL.PDF_FOLDER] || "",
+      });
+    }
 
-      return lead;
-    });
-
-    res.json({ leads, headers });
+    res.json({ leads });
   } catch (err) {
     console.error("FMS list error:", err);
     res.status(500).json({ error: "Failed to fetch FMS", details: err.message });
   }
 });
 
-// POST /api/fms/update - Update specific columns for a lead in FMS
-// This will be expanded when FMS column structure is provided
-router.post("/update", async (req, res) => {
+// GET /api/fms/step2 - Step 2 leads (Planned not empty, Actual empty)
+router.get("/step2", async (req, res) => {
   try {
-    const { enqNo, columnIndex, value } = req.body;
-
-    if (!enqNo || columnIndex === undefined || value === undefined) {
-      return res.status(400).json({ error: "enqNo, columnIndex, and value are required" });
+    const data = await getSheetData(SHEET_NAME);
+    if (data.length <= 6) {
+      return res.json({ leads: [] });
     }
 
-    const rowIndex = await findRowByEnqNo(SHEETS.FMS, enqNo);
-    if (rowIndex === -1) {
-      return res.status(404).json({ error: "Lead not found in FMS" });
+    const leads = [];
+    for (let i = 6; i < data.length; i++) {
+      const row = data[i];
+      if (!row || !row[COL.ENQ_NO]) continue;
+
+      const planned = (row[COL.PLANNED] || "").trim();
+      const actual = (row[COL.ACTUAL] || "").trim();
+
+      // Show only if Planned is filled and Actual is empty
+      if (planned && !actual) {
+        leads.push({
+          rowIndex: i + 1,
+          timestamp: row[COL.TIMESTAMP] || "",
+          enqNo: row[COL.ENQ_NO] || "",
+          leadGeneratedFrom: row[COL.LEAD_FROM] || "",
+          clientName: row[COL.CLIENT_NAME] || "",
+          partnerType: row[COL.PARTNER_TYPE] || "",
+          purpose: row[COL.PURPOSE] || "",
+          location: row[COL.LOCATION] || "",
+          contactInfo: row[COL.CONTACT_INFO] || "",
+          concernPerson: row[COL.CONCERN_PERSON] || "",
+          planned: planned,
+          actual: actual,
+          status: row[COL.STATUS] || "",
+          mapLocation: row[COL.MAP_LOCATION] || "",
+          aks: row[COL.AKS] || "",
+          khasra: row[COL.KHASRA] || "",
+          oldDocument: row[COL.OLD_DOCUMENT] || "",
+          landSurvey: row[COL.LAND_SURVEY] || "",
+          pdfFolder: row[COL.PDF_FOLDER] || "",
+        });
+      }
     }
 
-    // Convert column index to letter (0=A, 1=B, etc.)
-    const colLetter = String.fromCharCode(65 + columnIndex);
-    await updateCell(SHEETS.FMS, `${colLetter}${rowIndex}`, [value]);
+    res.json({ leads });
+  } catch (err) {
+    console.error("FMS step2 error:", err);
+    res.status(500).json({ error: "Failed to fetch Step 2 leads", details: err.message });
+  }
+});
 
-    res.json({
-      message: `Updated column ${colLetter} for lead ${enqNo}`,
+// POST /api/fms/step2/update - Update Step 2 with document uploads
+router.post("/step2/update", async (req, res) => {
+  try {
+    const { rowIndex, enqNo, location } = req.body;
+
+    if (!rowIndex || !enqNo) {
+      return res.status(400).json({ error: "rowIndex and enqNo are required" });
+    }
+
+    // Create folder name: EnqNo_Location
+    const folderName = `${enqNo}_${(location || "").replace(/[^a-zA-Z0-9]/g, "_")}`;
+    
+    // Create folder in Google Drive
+    const parentFolderId = "180yh3YoG-wbcgDQCkwvmGKqKfFinRsUK";
+    const folder = await createDriveFolder(folderName, parentFolderId);
+    const folderLink = `https://drive.google.com/drive/folders/${folder.id}`;
+
+    // File uploads will be handled separately via /api/fms/upload endpoint
+    // Here we just update the sheet with folder link and actual date
+
+    const currentDateTime = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+
+    // Update Actual (K), Status (L), PDF Folder (AA)
+    await updateCell(SHEET_NAME, `${colLetter(COL.ACTUAL)}${rowIndex}`, [currentDateTime]);
+    await updateCell(SHEET_NAME, `${colLetter(COL.STATUS)}${rowIndex}`, ["Done"]);
+    await updateCell(SHEET_NAME, `${colLetter(COL.PDF_FOLDER)}${rowIndex}`, [folderLink]);
+
+    res.json({ 
+      success: true, 
+      message: "Step 2 completed",
+      folderId: folder.id,
+      folderLink: folderLink
     });
   } catch (err) {
-    console.error("FMS update error:", err);
+    console.error("FMS step2 update error:", err);
     res.status(500).json({ error: "Update failed", details: err.message });
+  }
+});
+
+// POST /api/fms/upload - Upload file to Drive and update sheet column
+router.post("/upload", async (req, res) => {
+  try {
+    const { rowIndex, folderId, columnIndex, fileName, fileBase64, mimeType } = req.body;
+
+    if (!rowIndex || !folderId || columnIndex === undefined || !fileBase64) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Upload file to the folder
+    const file = await uploadFileToDrive(fileName, fileBase64, mimeType, folderId);
+    const fileLink = `https://drive.google.com/file/d/${file.id}/view`;
+
+    // Update the specific column with file link
+    await updateCell(SHEET_NAME, `${colLetter(columnIndex)}${rowIndex}`, [fileLink]);
+
+    res.json({ 
+      success: true, 
+      fileId: file.id,
+      fileLink: fileLink
+    });
+  } catch (err) {
+    console.error("FMS upload error:", err);
+    res.status(500).json({ error: "Upload failed", details: err.message });
   }
 });
 
