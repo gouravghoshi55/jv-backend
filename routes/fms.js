@@ -199,4 +199,14 @@ router.post("/upload", async (req, res) => {
   }
 });
 
+
+const step3Routes = require("./fms/steps/step3");
+router.use("/step3", step3Routes);
+
+const step4Routes = require("./fms/steps/step4");
+router.use("/step4", step4Routes);
+
+const step5Routes = require("./fms/steps/step5");
+router.use("/step5", step5Routes);
+
 module.exports = router;
