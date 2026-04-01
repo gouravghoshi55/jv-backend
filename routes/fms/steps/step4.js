@@ -24,7 +24,11 @@ const COL = {
   CONTACT_INFO: 7,
   CONCERN_PERSON: 8,
 
-  // Step 2 reference
+  // Step 2 file columns
+  AKS: 14,               // O
+  KHASRA: 15,            // P
+  OLD_DOCUMENT: 16,      // Q
+  LAND_SURVEY: 17,       // R
   PDF_FOLDER: 26,        // AA - Parent folder link (created in Step 2)
 
   // Step 4 columns
@@ -94,6 +98,12 @@ router.get("/", async (req, res) => {
           contactInfo: row[COL.CONTACT_INFO] || "",
           concernPerson: row[COL.CONCERN_PERSON] || "",
           pdfFolder: row[COL.PDF_FOLDER] || "",
+          // Step 2 files
+          aks: row[COL.AKS] || "",
+          khasra: row[COL.KHASRA] || "",
+          oldDocument: row[COL.OLD_DOCUMENT] || "",
+          landSurvey: row[COL.LAND_SURVEY] || "",
+          // Step 4 fields
           step4Planned: planned,
           step4Actual: actual,
           step4Status: row[COL.STEP4_STATUS] || "",

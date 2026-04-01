@@ -4,13 +4,15 @@ const {
   SHEETS,
   getSheetData,
   updateCell,
+  appendRow,
+  deleteRow,
 } = require("../../../utils/sheets");
 
 const SHEET_NAME = SHEETS.FMS;
+const PROPOSAL_DONE_SHEET = "Proposal Done Leads";
 
 // Column mapping (0-indexed) - FMS sheet
 const COL = {
-  // Basic lead info (A-I)
   TIMESTAMP: 0,
   ENQ_NO: 1,
   LEAD_FROM: 2,
@@ -21,14 +23,26 @@ const COL = {
   CONTACT_INFO: 7,
   CONCERN_PERSON: 8,
 
-  // Step 2 reference
-  PDF_FOLDER: 26,        // AA
+  // Step 2 file columns
+  AKS: 14,
+  KHASRA: 15,
+  OLD_DOCUMENT: 16,
+  LAND_SURVEY: 17,
+  PDF_FOLDER: 26,
+
+  // Step 4 file columns
+  STEP4_TYPE_OF_PROJECT: 27,
+  STEP4_CAD_FILE: 28,
+  STEP4_CALC_LINK: 29,
 
   // Step 5 columns
-  STEP5_PLANNED: 31,     // AF
-  STEP5_ACTUAL: 32,      // AG
-  STEP5_STATUS: 33,      // AH
+  STEP5_PLANNED: 31,  // AF
+  STEP5_ACTUAL: 32,   // AG
+  STEP5_STATUS: 33,   // AH
+  // AI = index 34 (Time Delay - last column to copy)
 };
+
+const MAX_FMS_COL = 34; // AI = index 34, copy B(1) to AI(34)
 
 // Helper: column index to letter
 function colLetter(index) {
@@ -44,8 +58,7 @@ function formatDateTime(dateStr) {
   return dateVal.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 }
 
-// GET /api/fms/step5 - Get Step 5 leads
-// Filter: Planned (AF) filled + Actual (AG) empty
+// GET /api/fms/step5
 router.get("/", async (req, res) => {
   try {
     const data = await getSheetData(SHEET_NAME);
@@ -59,13 +72,11 @@ router.get("/", async (req, res) => {
       let row = data[i];
       if (!row || !row[COL.ENQ_NO]) continue;
 
-      // Pad row to ensure all columns are accessible
-      while (row.length <= COL.STEP5_STATUS) row.push("");
+      while (row.length <= MAX_FMS_COL) row.push("");
 
       const planned = (row[COL.STEP5_PLANNED] || "").toString().trim();
       const actual = (row[COL.STEP5_ACTUAL] || "").toString().trim();
 
-      // Filter: Planned filled + Actual empty
       if (planned && !actual) {
         leads.push({
           rowIndex: i + 1,
@@ -79,6 +90,13 @@ router.get("/", async (req, res) => {
           contactInfo: row[COL.CONTACT_INFO] || "",
           concernPerson: row[COL.CONCERN_PERSON] || "",
           pdfFolder: row[COL.PDF_FOLDER] || "",
+          aks: row[COL.AKS] || "",
+          khasra: row[COL.KHASRA] || "",
+          oldDocument: row[COL.OLD_DOCUMENT] || "",
+          landSurvey: row[COL.LAND_SURVEY] || "",
+          step4TypeOfProject: row[COL.STEP4_TYPE_OF_PROJECT] || "",
+          step4CadFile: row[COL.STEP4_CAD_FILE] || "",
+          step4CalcLink: row[COL.STEP4_CALC_LINK] || "",
           step5Planned: planned,
           step5Actual: actual,
           step5Status: row[COL.STEP5_STATUS] || "",
@@ -93,7 +111,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/fms/step5/update - Update Step 5 status (Done only)
+// POST /api/fms/step5/update
 router.post("/update", async (req, res) => {
   try {
     const { rowIndex, enqNo, status, plannedOverride } = req.body;
@@ -109,25 +127,22 @@ router.post("/update", async (req, res) => {
         `${colLetter(COL.STEP5_PLANNED)}${rowIndex}`,
         [formatDateTime(plannedOverride)]
       );
-
-      return res.json({
-        success: true,
-        message: "Planned date updated successfully",
-      });
+      return res.json({ success: true, message: "Planned date updated successfully" });
     }
 
     if (status !== "Done") {
       return res.status(400).json({ error: "Only 'Done' status is allowed for Step 5" });
     }
 
-    // Update Status (AH)
+    // ===== DONE: Update status, then move to Proposal Done Leads =====
+
+    // First update status so formula can fill Actual
     await updateCell(
       SHEET_NAME,
       `${colLetter(COL.STEP5_STATUS)}${rowIndex}`,
       [status]
     );
 
-    // Update Planned Override (AF) if provided
     if (plannedOverride && plannedOverride.trim()) {
       await updateCell(
         SHEET_NAME,
@@ -136,11 +151,35 @@ router.post("/update", async (req, res) => {
       );
     }
 
-    // Actual (AG) will be auto-filled by sheet formula
+    // Re-read the row to get formula-updated values
+    const data = await getSheetData(SHEET_NAME);
+    const row = data[rowIndex - 1];
+
+    if (!row || row[COL.ENQ_NO] !== enqNo) {
+      return res.status(400).json({ error: "Lead not found or EnQ No mismatch" });
+    }
+
+    // Pad row
+    while (row.length <= MAX_FMS_COL) row.push("");
+
+    // Build destination row: A = current timestamp, B-AI = copy from FMS
+    const currentTimestamp = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    const destRow = [currentTimestamp]; // A = new timestamp
+
+    // Copy columns B(1) to AI(34) from FMS
+    for (let c = 1; c <= MAX_FMS_COL; c++) {
+      destRow.push(row[c] || "");
+    }
+
+    // Append to Proposal Done Leads (data starts row 7, appendRow handles it)
+    await appendRow(PROPOSAL_DONE_SHEET, destRow);
+
+    // Delete from FMS
+    await deleteRow(SHEET_NAME, rowIndex);
 
     res.json({
       success: true,
-      message: "Step 5 marked as Done. Lead completed!",
+      message: "Step 5 Done! Lead moved to Proposal Done Leads.",
     });
 
   } catch (err) {

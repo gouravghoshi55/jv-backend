@@ -209,4 +209,10 @@ router.use("/step4", step4Routes);
 const step5Routes = require("./fms/steps/step5");
 router.use("/step5", step5Routes);
 
+const step6Routes = require("./fms/steps/step6");
+router.use("/step6", step6Routes);
+
+const step7Routes = require("./fms/steps/step7");
+router.use("/step7", step7Routes);
+
 module.exports = router;

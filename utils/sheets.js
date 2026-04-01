@@ -20,7 +20,7 @@ const SHEETS = {
 };
 
 // Sheets where data starts from Row 7 (Row 1-6 = headers/info)
-const ROW7_SHEETS = [SHEETS.FMS, SHEETS.DONE];
+const ROW7_SHEETS = [SHEETS.FMS, SHEETS.DONE, SHEETS.PROPOSAL_DONE];
 
 // Dedup check sheets - if lead's EnQ No is found in any of these, skip it
 const DEDUP_SHEETS = [
