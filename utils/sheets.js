@@ -13,14 +13,14 @@ const SHEETS = {
   FMS: "FMS",
   REMARKS: "Remarks",
   NEXT_ACTION: "NEXT Action Plan",
-  SITE_VISIT_FMS: "SITE VIST FMS",
+  SITE_VISIT_FMS: "SITE VISIT FMS",
   DONE: "DONE",
   PROPOSAL_DONE: "Proposal Done Leads",
-  SITE_VISIT_ECS: "SITE VIST ECS",
+  SITE_VISIT_ECS: "SITE VISIT ECS",
 };
 
 // Sheets where data starts from Row 7 (Row 1-6 = headers/info)
-const ROW7_SHEETS = [SHEETS.FMS, SHEETS.DONE, SHEETS.PROPOSAL_DONE];
+const ROW7_SHEETS = [SHEETS.FMS, SHEETS.DONE, SHEETS.PROPOSAL_DONE, "SITE VISIT FMS"];
 
 // Dedup check sheets - if lead's EnQ No is found in any of these, skip it
 const DEDUP_SHEETS = [
@@ -83,37 +83,14 @@ async function updateCell(sheetName, range, values) {
   });
 }
 
-// Delete a row by row number (1-indexed)
+// Clear entire row data (A to AZ) instead of deleting
+// This preserves row structure so formulas in other rows don't shift
 async function deleteRow(sheetName, rowIndex) {
   const sheets = await getSheets();
 
-  // First get the sheetId (gid) for the sheet name
-  const spreadsheet = await sheets.spreadsheets.get({
+  await sheets.spreadsheets.values.clear({
     spreadsheetId: SHEET_ID,
-  });
-
-  const sheet = spreadsheet.data.sheets.find(
-    (s) => s.properties.title === sheetName
-  );
-
-  if (!sheet) throw new Error(`Sheet "${sheetName}" not found`);
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SHEET_ID,
-    resource: {
-      requests: [
-        {
-          deleteDimension: {
-            range: {
-              sheetId: sheet.properties.sheetId,
-              dimension: "ROWS",
-              startIndex: rowIndex - 1, // 0-indexed
-              endIndex: rowIndex,
-            },
-          },
-        },
-      ],
-    },
+    range: `'${sheetName}'!A${rowIndex}:AZ${rowIndex}`,
   });
 }
 

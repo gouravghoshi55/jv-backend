@@ -35,9 +35,9 @@ const COL = {
   STEP4_PLANNED: 23,     // X
   STEP4_ACTUAL: 24,      // Y
   STEP4_STATUS: 25,      // Z
-  STEP4_TYPE_OF_PROJECT: 27,  // AB
-  STEP4_CAD_FILE: 28,    // AC
-  STEP4_CALC_LINK: 29,   // AD
+  STEP4_TYPE_OF_PROJECT: 27,  // AB - TEXT field now
+  STEP4_CAD_FILE: 28,    // AC - FILE upload
+  STEP4_CALC_LINK: 29,   // AD - TEXT field now
 
   // Step 5 Planned (set from Step 4 on Done)
   STEP5_PLANNED: 31,     // AF
@@ -107,9 +107,9 @@ router.get("/", async (req, res) => {
           step4Planned: planned,
           step4Actual: actual,
           step4Status: row[COL.STEP4_STATUS] || "",
-          step4TypeOfProject: row[COL.STEP4_TYPE_OF_PROJECT] || "",
-          step4CadFile: row[COL.STEP4_CAD_FILE] || "",
-          step4CalcLink: row[COL.STEP4_CALC_LINK] || "",
+          step4TypeOfProject: row[COL.STEP4_TYPE_OF_PROJECT] || "",  // Text value
+          step4CadFile: row[COL.STEP4_CAD_FILE] || "",               // File link
+          step4CalcLink: row[COL.STEP4_CALC_LINK] || "",             // Text value
         });
       }
     }
@@ -121,7 +121,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/fms/step4/upload - Upload file to parent folder and update column
+// POST /api/fms/step4/upload - Upload CAD file to parent folder and update column
 router.post("/upload", async (req, res) => {
   try {
     const { rowIndex, enqNo, columnIndex, fileName, fileBase64, mimeType, folderLink } = req.body;
@@ -148,6 +148,43 @@ router.post("/upload", async (req, res) => {
   } catch (err) {
     console.error("FMS Step 4 upload error:", err);
     res.status(500).json({ error: "Upload failed", details: err.message });
+  }
+});
+
+// POST /api/fms/step4/save-text - Save text fields (Type of Project & Calculation Link)
+router.post("/save-text", async (req, res) => {
+  try {
+    const { rowIndex, enqNo, typeOfProject, calcLink } = req.body;
+
+    if (!rowIndex || !enqNo) {
+      return res.status(400).json({ error: "rowIndex and enqNo are required" });
+    }
+
+    // Update Type of Project (AB/27) if provided
+    if (typeOfProject !== undefined) {
+      await updateCell(
+        SHEET_NAME,
+        `${colLetter(COL.STEP4_TYPE_OF_PROJECT)}${rowIndex}`,
+        [typeOfProject.trim()]
+      );
+    }
+
+    // Update Calculation Link (AD/29) if provided
+    if (calcLink !== undefined) {
+      await updateCell(
+        SHEET_NAME,
+        `${colLetter(COL.STEP4_CALC_LINK)}${rowIndex}`,
+        [calcLink.trim()]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: "Text fields saved successfully",
+    });
+  } catch (err) {
+    console.error("FMS Step 4 save-text error:", err);
+    res.status(500).json({ error: "Save failed", details: err.message });
   }
 });
 

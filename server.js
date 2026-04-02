@@ -19,6 +19,8 @@ app.use("/api/cold-leads", require("./routes/coldLeads"));
 app.use("/api/fms", require("./routes/fms"));
 app.use("/api/done", require("./routes/done"));
 app.use("/api/next-action-plan", require("./routes/nextActionPlan"));
+app.use("/api/site-visit/ecs", require("./routes/siteVisitEcs"));
+app.use("/api/site-visit/fms", require("./routes/siteVisitFms"));
 
 // Health check
 app.get("/api/health", (req, res) => {
