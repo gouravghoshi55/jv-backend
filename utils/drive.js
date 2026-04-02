@@ -8,20 +8,33 @@ let driveApi = null;
 async function getDrive() {
   if (driveApi) return driveApi;
 
-  const auth = new google.auth.GoogleAuth({
-    keyFile: path.resolve(__dirname, "../credentials.json"),
-    scopes: [
-      "https://www.googleapis.com/auth/drive",
-      "https://www.googleapis.com/auth/drive.file",
-    ],
-  });
+  let auth;
+  if (process.env.GOOGLE_CREDENTIALS) {
+    // Production (Render): use base64 encoded credentials from env var
+    const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    auth = new google.auth.GoogleAuth({
+      credentials: creds,
+      scopes: [
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/drive.file",
+      ],
+    });
+  } else {
+    // Local development: use credentials.json file
+    auth = new google.auth.GoogleAuth({
+      keyFile: path.resolve(__dirname, "../credentials.json"),
+      scopes: [
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/drive.file",
+      ],
+    });
+  }
 
   const client = await auth.getClient();
   driveApi = google.drive({ version: "v3", auth: client });
   return driveApi;
 }
 
-// Create folder in Google Drive (Shared Drive supported)
 async function createDriveFolder(folderName, parentFolderId) {
   const drive = await getDrive();
 
@@ -40,7 +53,6 @@ async function createDriveFolder(folderName, parentFolderId) {
   return response.data;
 }
 
-// Upload file to Google Drive (Shared Drive supported)
 async function uploadFileToDrive(fileName, fileBase64, mimeType, folderId) {
   const drive = await getDrive();
 
@@ -64,7 +76,6 @@ async function uploadFileToDrive(fileName, fileBase64, mimeType, folderId) {
   return response.data;
 }
 
-// List files in a folder (optional utility)
 async function listFilesInFolder(folderId) {
   const drive = await getDrive();
 

@@ -4,7 +4,6 @@ require("dotenv").config();
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// Sheet names exactly as in Google Sheets
 const SHEETS = {
   ENQUIRY: "Enquiry Responses",
   PIPELINE: "PIPELINE",
@@ -19,10 +18,8 @@ const SHEETS = {
   SITE_VISIT_ECS: "SITE VISIT ECS",
 };
 
-// Sheets where data starts from Row 7 (Row 1-6 = headers/info)
-const ROW7_SHEETS = [SHEETS.FMS, SHEETS.DONE, SHEETS.PROPOSAL_DONE, "SITE VISIT FMS"];
+const ROW7_SHEETS = [SHEETS.FMS, SHEETS.DONE, SHEETS.PROPOSAL_DONE, SHEETS.SITE_VISIT_FMS];
 
-// Dedup check sheets - if lead's EnQ No is found in any of these, skip it
 const DEDUP_SHEETS = [
   SHEETS.PIPELINE,
   SHEETS.NOT_QUALIFIED,
@@ -37,17 +34,27 @@ let sheetsApi = null;
 async function getSheets() {
   if (sheetsApi) return sheetsApi;
 
-  const auth = new google.auth.GoogleAuth({
-    keyFile: path.resolve(__dirname, "../credentials.json"),
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
+  let auth;
+  if (process.env.GOOGLE_CREDENTIALS) {
+    // Production (Render): use base64 encoded credentials from env var
+    const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    auth = new google.auth.GoogleAuth({
+      credentials: creds,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+  } else {
+    // Local development: use credentials.json file
+    auth = new google.auth.GoogleAuth({
+      keyFile: path.resolve(__dirname, "../credentials.json"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+  }
 
   const client = await auth.getClient();
   sheetsApi = google.sheets({ version: "v4", auth: client });
   return sheetsApi;
 }
 
-// Fetch all rows from a sheet (returns array of arrays)
 async function getSheetData(sheetName, range) {
   const sheets = await getSheets();
   const fullRange = range ? `'${sheetName}'!${range}` : `'${sheetName}'`;
@@ -58,8 +65,6 @@ async function getSheetData(sheetName, range) {
   return res.data.values || [];
 }
 
-// Append a row to a sheet
-// For FMS/DONE sheets, appends from A7 so data always goes after Row 6 headers
 async function appendRow(sheetName, values) {
   const sheets = await getSheets();
   const startCell = ROW7_SHEETS.includes(sheetName) ? "A7" : "A1";
@@ -72,7 +77,6 @@ async function appendRow(sheetName, values) {
   });
 }
 
-// Update a specific cell or range
 async function updateCell(sheetName, range, values) {
   const sheets = await getSheets();
   await sheets.spreadsheets.values.update({
@@ -84,21 +88,18 @@ async function updateCell(sheetName, range, values) {
 }
 
 // Clear entire row data (A to AZ) instead of deleting
-// This preserves row structure so formulas in other rows don't shift
+// Preserves row structure so formulas in other rows don't shift
 async function deleteRow(sheetName, rowIndex) {
   const sheets = await getSheets();
-
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SHEET_ID,
     range: `'${sheetName}'!A${rowIndex}:AZ${rowIndex}`,
   });
 }
 
-// Get all EnQ Nos from a sheet (column B)
 async function getEnqNosFromSheet(sheetName) {
   try {
     const data = await getSheetData(sheetName, "B:B");
-    // FMS and DONE have data starting from row 7, others from row 2
     const skipRows = ROW7_SHEETS.includes(sheetName) ? 6 : 1;
     return data.slice(skipRows).map((row) => (row[0] || "").trim());
   } catch (err) {
@@ -106,13 +107,13 @@ async function getEnqNosFromSheet(sheetName) {
     return [];
   }
 }
-// Find row index by EnQ No in a sheet (returns 1-indexed row number, or -1)
+
 async function findRowByEnqNo(sheetName, enqNo) {
   const data = await getSheetData(sheetName);
   const startRow = ROW7_SHEETS.includes(sheetName) ? 6 : 1;
   for (let i = startRow; i < data.length; i++) {
     if ((data[i][1] || "").trim() === enqNo.trim()) {
-      return i + 1; // 1-indexed (row 1 = header, row 2 = first data)
+      return i + 1;
     }
   }
   return -1;
