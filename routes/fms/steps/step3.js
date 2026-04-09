@@ -44,6 +44,11 @@ function formatDateTime(dateStr) {
   return dateVal.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 }
 
+// Helper: get current timestamp in IST
+function getCurrentTimestamp() {
+  return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
 // GET /api/fms/step3 - Get Step 3 leads
 // Filter: Planned (S) filled + Actual (T) empty
 router.get("/", async (req, res) => {
@@ -164,9 +169,10 @@ router.post("/update", async (req, res) => {
       return res.status(400).json({ error: "Lead not found or EnQ No mismatch" });
     }
 
-    // Prepare data for destination (A-I + Remark in K, Status J blank)
+    // Prepare data for destination (A-I + Status J + Remark K)
+    // ✅ USE CURRENT TIMESTAMP
     const leadData = [
-      row[COL.TIMESTAMP] || "",      // A
+      getCurrentTimestamp(),         // A - ✅ CURRENT timestamp
       row[COL.ENQ_NO] || "",         // B
       row[COL.LEAD_FROM] || "",      // C
       row[COL.CLIENT_NAME] || "",    // D
