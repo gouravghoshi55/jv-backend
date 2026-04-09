@@ -133,13 +133,72 @@ async function updateCell(sheetName, range, values) {
   });
 }
 
-// Clear entire row data (A to AZ) instead of deleting row
-// Preserves row structure so formulas in other rows don't shift
+/**
+ * Get Sheet ID by sheet name (required for batchUpdate operations)
+ * @param {string} sheetName - Name of the sheet
+ * @returns {number} - Sheet ID
+ */
+async function getSheetId(sheetName) {
+  const sheets = await getSheets();
+  const spreadsheet = await sheets.spreadsheets.get({
+    spreadsheetId: SHEET_ID,
+  });
+
+  const sheet = spreadsheet.data.sheets.find(
+    (s) => s.properties.title === sheetName
+  );
+
+  if (!sheet) {
+    throw new Error(`Sheet "${sheetName}" not found`);
+  }
+
+  return sheet.properties.sheetId;
+}
+
+/**
+ * Actually DELETE a row from sheet (not just clear)
+ * This shifts all rows below UP by one
+ * Formulas in those rows automatically adjust their references
+ * 
+ * @param {string} sheetName - Name of the sheet
+ * @param {number} rowIndex - 1-indexed row number to delete
+ */
 async function deleteRow(sheetName, rowIndex) {
+  const sheets = await getSheets();
+  const sheetId = await getSheetId(sheetName);
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: sheetId,
+              dimension: "ROWS",
+              startIndex: rowIndex - 1,  // 0-indexed (row 7 = index 6)
+              endIndex: rowIndex,         // exclusive (deletes only 1 row)
+            },
+          },
+        },
+      ],
+    },
+  });
+}
+
+/**
+ * Clear row data without deleting the row
+ * Use this when you want to preserve row structure
+ * 
+ * @param {string} sheetName - Name of the sheet
+ * @param {number} rowIndex - 1-indexed row number to clear
+ * @param {string} endColumn - Last column to clear (default: "AZ")
+ */
+async function clearRow(sheetName, rowIndex, endColumn = "AZ") {
   const sheets = await getSheets();
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SHEET_ID,
-    range: `'${sheetName}'!A${rowIndex}:AZ${rowIndex}`,
+    range: `'${sheetName}'!A${rowIndex}:${endColumn}${rowIndex}`,
   });
 }
 
@@ -171,7 +230,9 @@ module.exports = {
   getSheetData,
   appendRow,
   updateCell,
-  deleteRow,
+  deleteRow,      // Actually deletes row (shifts rows up)
+  clearRow,       // Just clears data (keeps row structure)
   getEnqNosFromSheet,
   findRowByEnqNo,
+  getSheetId,     // Utility function (exported for flexibility)
 };
