@@ -22,7 +22,19 @@ const COL = {
   CONTACT_INFO: 7,
   CONCERN_PERSON: 8,
 
-  PDF_FOLDER: 26,
+  // Step 2 file columns (copied from FMS)
+  AKS: 14,               // O
+  KHASRA: 15,            // P
+  OLD_DOCUMENT: 16,      // Q
+  LAND_SURVEY: 17,       // R
+
+  // Folder link
+  PDF_FOLDER: 26,        // AA
+
+  // Step 4 file columns (copied from FMS)
+  STEP4_TYPE_OF_PROJECT: 27,  // AB
+  STEP4_CAD_FILE: 28,         // AC
+  STEP4_CALC_LINK: 29,        // AD
 
   // Step 7: Agreement
   STEP7_PLANNED: 40,    // AO
@@ -77,7 +89,18 @@ router.get("/", async (req, res) => {
           location: row[COL.LOCATION] || "",
           contactInfo: row[COL.CONTACT_INFO] || "",
           concernPerson: row[COL.CONCERN_PERSON] || "",
+          // File columns from Step 2
+          aks: row[COL.AKS] || "",
+          khasra: row[COL.KHASRA] || "",
+          oldDocument: row[COL.OLD_DOCUMENT] || "",
+          landSurvey: row[COL.LAND_SURVEY] || "",
+          // Folder link
           pdfFolder: row[COL.PDF_FOLDER] || "",
+          // File columns from Step 4
+          step4TypeOfProject: row[COL.STEP4_TYPE_OF_PROJECT] || "",
+          step4CadFile: row[COL.STEP4_CAD_FILE] || "",
+          step4CalcLink: row[COL.STEP4_CALC_LINK] || "",
+          // Step 7 fields
           step7Planned: planned,
           step7Actual: actual,
           step7Status: row[COL.STEP7_STATUS] || "",
