@@ -27,7 +27,13 @@ const DEDUP_SHEETS = [
   SHEETS.FMS,
   SHEETS.SITE_VISIT_FMS,
   SHEETS.DONE,
+  SHEETS.PROPOSAL_DONE,
 ];
+
+// Sheets where formulas are pre-filled in every row
+// For these: find first empty row (EnQ No blank) and UPDATE only data columns
+// Do NOT use INSERT_ROWS — it creates new rows without formulas
+const FORMULA_SHEETS = [SHEETS.FMS, SHEETS.PROPOSAL_DONE, SHEETS.SITE_VISIT_FMS];
 
 let sheetsApi = null;
 
@@ -36,14 +42,12 @@ async function getSheets() {
 
   let auth;
   if (process.env.GOOGLE_CREDENTIALS) {
-    // Production (Render): use base64 encoded credentials from env var
     const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
     auth = new google.auth.GoogleAuth({
       credentials: creds,
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
   } else {
-    // Local development: use credentials.json file
     auth = new google.auth.GoogleAuth({
       keyFile: path.resolve(__dirname, "../credentials.json"),
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -65,16 +69,58 @@ async function getSheetData(sheetName, range) {
   return res.data.values || [];
 }
 
+// Find first empty row in a sheet (where column B / EnQ No is blank)
+async function findFirstEmptyRow(sheetName) {
+  const data = await getSheetData(sheetName, "B:B");
+  const startIndex = ROW7_SHEETS.includes(sheetName) ? 7 : 1; // 0-indexed in array
+
+  for (let i = startIndex; i < data.length; i++) {
+    const cellValue = (data[i] && data[i][0]) ? data[i][0].toString().trim() : "";
+    if (!cellValue) {
+      return i + 1; // 1-indexed row number
+    }
+  }
+  // No empty row found — return next row after last data
+  return data.length + 1;
+}
+
+// Append a row to a sheet
+// FORMULA_SHEETS: find empty row + update data columns only (formulas preserved)
+// Other sheets: normal INSERT_ROWS append
 async function appendRow(sheetName, values) {
   const sheets = await getSheets();
-  const startCell = ROW7_SHEETS.includes(sheetName) ? "A7" : "A1";
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SHEET_ID,
-    range: `'${sheetName}'!${startCell}`,
-    valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
-    resource: { values: [values] },
-  });
+
+  if (FORMULA_SHEETS.includes(sheetName)) {
+    // Find first empty row (EnQ No blank)
+    const emptyRow = await findFirstEmptyRow(sheetName);
+
+    // Calculate column letter for the range (A to whatever length values has)
+    function numToCol(num) {
+      if (num <= 26) return String.fromCharCode(64 + num);
+      return String.fromCharCode(64 + Math.floor((num - 1) / 26)) + String.fromCharCode(65 + ((num - 1) % 26));
+    }
+
+    const lastCol = numToCol(values.length);
+    const range = `'${sheetName}'!A${emptyRow}:${lastCol}${emptyRow}`;
+
+    // Update (not insert) — writes data into existing row, formulas in other columns stay
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: range,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [values] },
+    });
+  } else {
+    // Normal append for non-formula sheets
+    const startCell = ROW7_SHEETS.includes(sheetName) ? "A7" : "A1";
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: `'${sheetName}'!${startCell}`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      resource: { values: [values] },
+    });
+  }
 }
 
 async function updateCell(sheetName, range, values) {
@@ -87,7 +133,7 @@ async function updateCell(sheetName, range, values) {
   });
 }
 
-// Clear entire row data (A to AZ) instead of deleting
+// Clear entire row data (A to AZ) instead of deleting row
 // Preserves row structure so formulas in other rows don't shift
 async function deleteRow(sheetName, rowIndex) {
   const sheets = await getSheets();
