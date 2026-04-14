@@ -57,6 +57,11 @@ function formatDateTime(dateStr) {
   return dateVal.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 }
 
+// Helper: get current timestamp in IST
+function getCurrentTimestamp() {
+  return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
 // GET /api/fms/step7 - Get Step 7 leads
 // Filter: Planned (AO) filled + Actual (AP) empty
 router.get("/", async (req, res) => {
@@ -153,19 +158,20 @@ router.post("/update", async (req, res) => {
       return res.status(400).json({ error: "Lead not found or EnQ No mismatch" });
     }
 
-    // Prepare DONE sheet row (A-I basic info)
+    // Prepare DONE sheet row (A-K basic info)
+    // ✅ USE CURRENT TIMESTAMP
     const doneRow = [
-      row[COL.TIMESTAMP] || "",
-      row[COL.ENQ_NO] || "",
-      row[COL.LEAD_FROM] || "",
-      row[COL.CLIENT_NAME] || "",
-      row[COL.PARTNER_TYPE] || "",
-      row[COL.PURPOSE] || "",
-      row[COL.LOCATION] || "",
-      row[COL.CONTACT_INFO] || "",
-      row[COL.CONCERN_PERSON] || "",
-      "",  // J - Status blank
-      "",  // K - Remark blank
+      getCurrentTimestamp(),           // A - ✅ CURRENT timestamp
+      row[COL.ENQ_NO] || "",           // B
+      row[COL.LEAD_FROM] || "",        // C
+      row[COL.CLIENT_NAME] || "",      // D
+      row[COL.PARTNER_TYPE] || "",     // E
+      row[COL.PURPOSE] || "",          // F
+      row[COL.LOCATION] || "",         // G
+      row[COL.CONTACT_INFO] || "",     // H
+      row[COL.CONCERN_PERSON] || "",   // I
+      "",                              // J - Status blank
+      "",                              // K - Remark blank
     ];
 
     // Append to DONE sheet

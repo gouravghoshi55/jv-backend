@@ -64,6 +64,11 @@ function formatDateTime(dateStr) {
   return dateVal.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 }
 
+// Helper: get current timestamp in IST
+function getCurrentTimestamp() {
+  return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
 // GET /api/fms/step4 - Get Step 4 leads
 // Filter: Planned (X) filled + Actual (Y) empty
 router.get("/", async (req, res) => {
@@ -107,9 +112,9 @@ router.get("/", async (req, res) => {
           step4Planned: planned,
           step4Actual: actual,
           step4Status: row[COL.STEP4_STATUS] || "",
-          step4TypeOfProject: row[COL.STEP4_TYPE_OF_PROJECT] || "",  // Text value
-          step4CadFile: row[COL.STEP4_CAD_FILE] || "",               // File link
-          step4CalcLink: row[COL.STEP4_CALC_LINK] || "",             // Text value
+          step4TypeOfProject: row[COL.STEP4_TYPE_OF_PROJECT] || "",
+          step4CadFile: row[COL.STEP4_CAD_FILE] || "",
+          step4CalcLink: row[COL.STEP4_CALC_LINK] || "",
         });
       }
     }
@@ -268,18 +273,19 @@ router.post("/update", async (req, res) => {
         return res.status(400).json({ error: "Lead not found or EnQ No mismatch" });
       }
 
+      // ✅ USE CURRENT TIMESTAMP when moving to other sheets
       const leadData = [
-        row[COL.TIMESTAMP] || "",
-        row[COL.ENQ_NO] || "",
-        row[COL.LEAD_FROM] || "",
-        row[COL.CLIENT_NAME] || "",
-        row[COL.PARTNER_TYPE] || "",
-        row[COL.PURPOSE] || "",
-        row[COL.LOCATION] || "",
-        row[COL.CONTACT_INFO] || "",
-        row[COL.CONCERN_PERSON] || "",
-        "",
-        "",
+        getCurrentTimestamp(),           // A - ✅ CURRENT timestamp
+        row[COL.ENQ_NO] || "",           // B
+        row[COL.LEAD_FROM] || "",        // C
+        row[COL.CLIENT_NAME] || "",      // D
+        row[COL.PARTNER_TYPE] || "",     // E
+        row[COL.PURPOSE] || "",          // F
+        row[COL.LOCATION] || "",         // G
+        row[COL.CONTACT_INFO] || "",     // H
+        row[COL.CONCERN_PERSON] || "",   // I
+        "",                              // J - Status (blank)
+        "",                              // K - Remarks (blank)
       ];
 
       let destSheet;
@@ -313,4 +319,4 @@ router.post("/update", async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router; 

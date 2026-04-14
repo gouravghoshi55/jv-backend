@@ -4,6 +4,7 @@ require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const remarksRoutes = require("./routes/remarks");
 
 // CORS — allow all origins
 app.use(cors());
@@ -22,6 +23,7 @@ app.use("/api/done", require("./routes/done"));
 app.use("/api/next-action-plan", require("./routes/nextActionPlan"));
 app.use("/api/site-visit/ecs", require("./routes/siteVisitEcs"));
 app.use("/api/site-visit/fms", require("./routes/siteVisitFms"));
+app.use("/api/remarks", remarksRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
